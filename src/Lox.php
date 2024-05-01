@@ -51,14 +51,28 @@ class Lox
         $scanner = new Scanner($source);
         $tokens = $scanner->scanTokens();
 
-        foreach ($tokens as $token) {
-            echo $token . \PHP_EOL;
+        $parser = new Parser($tokens);
+        $expression = $parser->parse();
+
+        if (self::$hadError) {
+            return;
         }
+
+        \dump($expression);
     }
 
-    public static function error(int $line, string $message): void
+    public static function error(int|Token $place, string $message): void
     {
-        self::report($line, $message);
+        if (\is_int($place)) {
+            self::report($place, $message);
+            return;
+        }
+
+        if ($place->type === TokenType::EOF) {
+            self::report($place->line, $message, ' at end');
+        } else {
+            self::report($place->line, $message, \sprintf(' at "%s"', $place->lexeme));
+        }
     }
 
     private static function report(int $line, string $message, string $where = ''): void
