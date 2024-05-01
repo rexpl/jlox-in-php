@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace Rexpl\Lox;
 
+use Rexpl\Lox\Exceptions\RuntimeError;
+
 class Lox
 {
     private static bool $hadError = false;
+    private static bool $hasRuntimeError = false;
+    private static Interpreter $interpreter;
 
     public static function main(array $args): void
     {
+        self::$interpreter = new Interpreter();
+
         $argumentsCount = count($args);
 
         if ($argumentsCount > 2) {
@@ -29,6 +35,10 @@ class Lox
 
         if (self::$hadError) {
             exit(65);
+        }
+
+        if (self::$hasRuntimeError) {
+            exit(70);
         }
     }
 
@@ -58,26 +68,39 @@ class Lox
             return;
         }
 
-        \dump($expression);
+        self::$interpreter->interpret($expression);
     }
 
-    public static function error(int|Token $place, string $message): void
+    public static function error(int $line, string $message): void
     {
-        if (\is_int($place)) {
-            self::report($place, $message);
-            return;
-        }
-
-        if ($place->type === TokenType::EOF) {
-            self::report($place->line, $message, ' at end');
-        } else {
-            self::report($place->line, $message, \sprintf(' at "%s"', $place->lexeme));
-        }
-    }
-
-    private static function report(int $line, string $message, string $where = ''): void
-    {
-        echo \sprintf("\033[31m[line %d] Error%s: %s\033[0m\n", $line, $where, $message);
         self::$hadError = true;
+        self::report($line, $message);
+    }
+
+    public static function parseError(Token $token, string $message): void
+    {
+        self::$hadError = true;
+
+        if ($token->type === TokenType::EOF) {
+            self::report($token->line, $message, ' at end', 'ParseError');
+        } else {
+            self::report($token->line, $message, \sprintf(' at "%s"', $token->lexeme), 'ParseError');
+        }
+    }
+
+    public static function runtimeError(RuntimeError $error): void
+    {
+        self::report(
+            $error->token->line,
+            $error->userMessage,
+            sprintf(' at "%s"', $error->token->lexeme),
+            'RuntimeError'
+        );
+        self::$hasRuntimeError = true;
+    }
+
+    private static function report(int $line, string $message, string $where = '', string $errorType = 'Error'): void
+    {
+        echo \sprintf("\033[31m[line %d] %s%s: %s\033[0m\n", $line, $errorType, $where, $message);
     }
 }

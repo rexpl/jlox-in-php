@@ -104,8 +104,8 @@ class Parser
             $this->match(TokenType::FALSE) => new LiteralExpression(false),
             $this->match(TokenType::TRUE) => new LiteralExpression(true),
             $this->match(TokenType::NIL) => new LiteralExpression(null),
-            $this->match(TokenType::NUMBER) => new LiteralExpression((float) $this->previous()->lexeme),
-            $this->match(TokenType::STRING) => new LiteralExpression($this->previous()->lexeme),
+            $this->match(TokenType::NUMBER) => new LiteralExpression((float) $this->previous()->literal),
+            $this->match(TokenType::STRING) => new LiteralExpression($this->previous()->literal),
             $this->match(TokenType::LEFT_PAREN) => $this->grouping(),
             default => throw $this->error($this->peek(), 'Expected expression.'),
         };
@@ -142,7 +142,7 @@ class Parser
 
     protected function error(Token $token, string $message): \ParseError
     {
-        Lox::error($token, $message);
+        Lox::parseError($token, $message);
         return new \ParseError();
     }
 
