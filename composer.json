@@ -1,0 +1,10 @@
+{
+    "autoload": {
+        "psr-4": {
+            "Rexpl\\Lox\\": "src"
+        }
+    },
+    "require": {
+        "symfony/var-dumper": "^7.0"
+    }
+}

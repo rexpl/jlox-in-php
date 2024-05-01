@@ -1,0 +1,12 @@
+#!/bin/usr/php
+<?php
+
+declare(strict_types=1);
+
+require 'vendor/autoload.php';
+
+try {
+    \Rexpl\Lox\Lox::main($argv);
+} catch (Throwable $throwable) {
+    dd($throwable);
+}
