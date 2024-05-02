@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Rexpl\Lox;
 
 use Rexpl\Lox\Exceptions\RuntimeError;
+use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\PrintStatement;
 
 class Lox
 {
@@ -51,6 +53,10 @@ class Lox
                 break;
             }
 
+            if (!\str_ends_with($line, ';')) {
+                $line .= ';';
+            }
+
             self::run($line, true);
             self::$hadError = false;
         }
@@ -62,13 +68,18 @@ class Lox
         $tokens = $scanner->scanTokens();
 
         $parser = new Parser($tokens);
-        $expression = $parser->parse();
+        $statements = $parser->parse();
 
         if (self::$hadError) {
             return;
         }
 
-        self::$interpreter->interpret($expression);
+        // If the input is only a single expression we evaluate it and print it for convenience.
+        if ($repl && \count($statements) === 1 && $statements[0] instanceof ExpressionStatement) {
+            $statements[0] = new PrintStatement($statements[0]->expression);
+        }
+
+        self::$interpreter->interpret($statements);
     }
 
     public static function error(int $line, string $message): void

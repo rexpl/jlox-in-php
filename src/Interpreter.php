@@ -5,27 +5,77 @@ declare(strict_types=1);
 namespace Rexpl\Lox;
 
 use Rexpl\Lox\Contracts\Expression;
+use Rexpl\Lox\Contracts\Statement;
 use Rexpl\Lox\Contracts\Visitor;
 use Rexpl\Lox\Exceptions\RuntimeError;
+use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
+use Rexpl\Lox\Expressions\VariableExpression;
+use Rexpl\Lox\Statements\BlockStatement;
+use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\PrintStatement;
+use Rexpl\Lox\Statements\VariableStatement;
 
 class Interpreter implements Visitor
 {
-    public function interpret(Expression $expression): void
+    protected Environment $environment;
+
+    public function __construct()
+    {
+        $this->environment = new Environment();
+    }
+
+    /**
+     * @param array<\Rexpl\Lox\Contracts\Statement> $statements
+     */
+    public function interpret(array $statements): void
     {
         try {
-            \dump($expression->acceptVisitor($this));
+            foreach ($statements as $statement) {
+                $this->execute($statement);
+            }
         } catch (RuntimeError $e) {
             Lox::runtimeError($e);
         }
     }
 
+    /**
+     * @param array<\Rexpl\Lox\Contracts\Statement> $statements
+     * @param \Rexpl\Lox\Environment $environment
+     */
+    public function executeBlock(array $statements, Environment $environment): void
+    {
+        $previous = $this->environment;
+
+        try {
+            $this->environment = $environment;
+
+            foreach ($statements as $statement) {
+                $this->execute($statement);
+            }
+        } finally {
+            $this->environment = $previous;
+        }
+    }
+
+    protected function execute(Statement $statement): void
+    {
+        $statement->acceptVisitor($this);
+    }
+
     protected function evaluate(Expression $expression): mixed
     {
         return $expression->acceptVisitor($this);
+    }
+
+    public function visitAssignExpression(AssignExpression $expression)
+    {
+        $value = $this->evaluate($expression->expression);
+        $this->environment->assign($expression->name, $value);
+        return $value;
     }
 
     public function visitBinaryExpression(BinaryExpression $expression)
@@ -96,6 +146,32 @@ class Interpreter implements Visitor
         if ($expression->operator->type === TokenType::BANG) {
             return !$this->isTruthy($value);
         }
+    }
+
+    public function visitVariableExpression(VariableExpression $expression)
+    {
+        return $this->environment->get($expression->name);
+    }
+
+    public function visitBlockStatement(BlockStatement $statement)
+    {
+        $this->executeBlock($statement->statements, new Environment($this->environment));
+    }
+
+    public function visitExpressionStatement(ExpressionStatement $statement)
+    {
+        $this->evaluate($statement->expression);
+    }
+
+    public function visitPrintStatement(PrintStatement $statement)
+    {
+        \dump($this->evaluate($statement->expression));
+    }
+
+    public function visitVariableStatement(VariableStatement $statement)
+    {
+        $value = $this->evaluate($statement->expression);
+        $this->environment->define($statement->name, $value);
     }
 
     protected function checkNumberOperand(Token $operator, mixed $operand): void

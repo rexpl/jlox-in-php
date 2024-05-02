@@ -5,10 +5,17 @@ declare(strict_types=1);
 namespace Rexpl\Lox;
 
 use Rexpl\Lox\Contracts\Expression;
+use Rexpl\Lox\Contracts\Statement;
+use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
+use Rexpl\Lox\Expressions\VariableExpression;
+use Rexpl\Lox\Statements\BlockStatement;
+use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\PrintStatement;
+use Rexpl\Lox\Statements\VariableStatement;
 
 class Parser
 {
@@ -19,18 +26,105 @@ class Parser
      */
     public function __construct(protected array $tokens) {}
 
-    public function parse(): ?Expression
+    public function parse(): array
+    {
+        $statements = [];
+
+        while (!$this->isAtEnd()) {
+            $statements[] = $this->declaration();
+        }
+
+        return $statements;
+    }
+
+    protected function declaration(): ?Statement
     {
         try {
-            return $this->expression();
+            if ($this->match(TokenType::VAR)) {
+                return $this->varDeclaration();
+            }
+
+            if ($this->match(TokenType::LEFT_BRACE)) {
+                return $this->block();
+            }
+
+            return $this->statement();
         } catch (\ParseError) {
+            $this->synchronize();
             return null;
         }
     }
 
+    protected function varDeclaration(): Statement
+    {
+        $identifier = $this->consume(TokenType::IDENTIFIER, 'Expected variable name.');
+        $this->consume(TokenType::EQUAL, 'Expected "=" after variable name.');
+        $expression = $this->expression();
+        $this->consume(TokenType::SEMICOLON, 'Expected ";" after variable declaration.');
+
+        return new VariableStatement($identifier, $expression);
+    }
+
+    protected function block(): BlockStatement
+    {
+        $statements = [];
+
+        while (!$this->check(TokenType::RIGHT_BRACE) && !$this->isAtEnd()) {
+            $statements[] = $this->declaration();
+        }
+
+        $this->consume(TokenType::RIGHT_BRACE, 'Expected "}" after block.');
+
+        return new BlockStatement($statements);
+    }
+
+    protected function statement(): Statement
+    {
+        if ($this->match(TokenType::PRINT)) {
+            return $this->printStatement();
+        }
+
+        return $this->expressionStatement();
+    }
+
+    protected function printStatement(): PrintStatement
+    {
+        $expression = $this->expression();
+        $this->consume(TokenType::SEMICOLON, 'Expected ";" after value.');
+
+        return new PrintStatement($expression);
+    }
+
+    protected function expressionStatement(): ExpressionStatement
+    {
+        $expression = $this->expression();
+        $this->consume(TokenType::SEMICOLON, 'Expected ";" after expression.');
+
+        return new ExpressionStatement($expression);
+    }
+
     protected function expression(): Expression
     {
-        return $this->equality();
+        return $this->assignment();
+    }
+
+    protected function assignment(): Expression
+    {
+        $expression = $this->equality();
+
+        if ($this->match(TokenType::EQUAL)) {
+            $equals = $this->previous();
+            $value = $this->assignment();
+
+            if ($expression instanceof VariableExpression) {
+                $name = $expression->name;
+                return new AssignExpression($name, $value);
+            }
+
+            $this->error($equals, 'Invalid assignment target.');
+        }
+
+        return $expression;
     }
 
     protected function equality(): Expression
@@ -107,6 +201,7 @@ class Parser
             $this->match(TokenType::NUMBER) => new LiteralExpression((float) $this->previous()->literal),
             $this->match(TokenType::STRING) => new LiteralExpression($this->previous()->literal),
             $this->match(TokenType::LEFT_PAREN) => $this->grouping(),
+            $this->match(TokenType::IDENTIFIER) => new VariableExpression($this->previous()),
             default => throw $this->error($this->peek(), 'Expected expression.'),
         };
     }
