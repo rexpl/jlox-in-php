@@ -25,14 +25,20 @@ class Environment
 
     public function get(Token $name): mixed
     {
-        return $this->values[$name->literal]
-            ?? $this->enclosing?->get($name)
-            ?? throw new RuntimeError($name, \sprintf('Access to undefined variable "%s".', $name->literal));
+        if (array_key_exists($name->literal, $this->values)) {
+            return $this->values[$name->literal];
+        }
+
+        if ($this->enclosing !== null) {
+            return $this->enclosing->get($name);
+        }
+
+        throw new RuntimeError($name, \sprintf('Access to undefined variable "%s".', $name->literal));
     }
 
     public function assign(Token $name, mixed $value): void
     {
-        if (isset($this->values[$name->literal])) {
+        if (array_key_exists($name->literal, $this->values)) {
             $this->values[$name->literal] = $value;
             return;
         }

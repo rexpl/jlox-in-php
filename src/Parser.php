@@ -10,12 +10,15 @@ use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
+use Rexpl\Lox\Expressions\LogicalExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\IfStatement;
 use Rexpl\Lox\Statements\PrintStatement;
 use Rexpl\Lox\Statements\VariableStatement;
+use Rexpl\Lox\Statements\WhileStatement;
 
 class Parser
 {
@@ -44,10 +47,6 @@ class Parser
                 return $this->varDeclaration();
             }
 
-            if ($this->match(TokenType::LEFT_BRACE)) {
-                return $this->block();
-            }
-
             return $this->statement();
         } catch (\ParseError) {
             $this->synchronize();
@@ -65,6 +64,107 @@ class Parser
         return new VariableStatement($identifier, $expression);
     }
 
+    protected function statement(): Statement
+    {
+        if ($this->match(TokenType::FOR)) {
+            return $this->forStatement();
+        }
+
+        if ($this->match(TokenType::IF)) {
+            return $this->ifStatement();
+        }
+
+        if ($this->match(TokenType::PRINT)) {
+            return $this->printStatement();
+        }
+
+        if ($this->match(TokenType::WHILE)) {
+            return $this->whileStatement();
+        }
+
+        if ($this->match(TokenType::LEFT_BRACE)) {
+            return $this->block();
+        }
+
+        return $this->expressionStatement();
+    }
+
+    protected function forStatement(): Statement
+    {
+        $this->consume(TokenType::LEFT_PAREN, 'Expected "(" after "for".');
+
+        if ($this->match(TokenType::VAR)) {
+            $initializer = $this->varDeclaration();
+        } elseif (!$this->match(TokenType::SEMICOLON)) {
+            $initializer = $this->expressionStatement();
+        }
+
+        if (!$this->check(TokenType::SEMICOLON)) {
+            $condition = $this->expression();
+        } else {
+            $condition = new LiteralExpression(true);
+        }
+
+        $this->consume(TokenType::SEMICOLON, 'Expected ";" after loop condition.');
+
+        if (!$this->check(TokenType::RIGHT_PAREN)) {
+            $increment = $this->expression();
+        }
+
+        $this->consume(TokenType::RIGHT_PAREN, 'Expected ")" after for clause.');
+
+        $body = $this->statement();
+
+        if (isset($increment)) {
+            $body = new BlockStatement([
+                $body,
+                new ExpressionStatement($increment)
+            ]);
+        }
+
+        $body = new WhileStatement($condition, $body);
+
+        if (isset($initializer)) {
+            return new BlockStatement([$initializer, $body]);
+        }
+
+        return $body;
+    }
+
+    protected function ifStatement(): IfStatement
+    {
+        $this->consume(TokenType::LEFT_PAREN, 'Expected "(" after "if".');
+        $condition = $this->expression();
+        $this->consume(TokenType::RIGHT_PAREN, 'Expected ")" after if condition.');
+
+        $then = $this->statement();
+        $else = null;
+
+        if ($this->match(TokenType::ELSE)) {
+            $else = $this->statement();
+        }
+
+        return new IfStatement($condition, $then, $else);
+    }
+
+    protected function printStatement(): PrintStatement
+    {
+        $expression = $this->expression();
+        $this->consume(TokenType::SEMICOLON, 'Expected ";" after value.');
+
+        return new PrintStatement($expression);
+    }
+
+    protected function whileStatement(): WhileStatement
+    {
+        $this->consume(TokenType::LEFT_PAREN, 'Expected "(" after "while".');
+        $condition = $this->expression();
+        $this->consume(TokenType::RIGHT_PAREN, 'Expected ")" after "while" condition.');
+        $body = $this->statement();
+
+        return new WhileStatement($condition, $body);
+    }
+
     protected function block(): BlockStatement
     {
         $statements = [];
@@ -76,23 +176,6 @@ class Parser
         $this->consume(TokenType::RIGHT_BRACE, 'Expected "}" after block.');
 
         return new BlockStatement($statements);
-    }
-
-    protected function statement(): Statement
-    {
-        if ($this->match(TokenType::PRINT)) {
-            return $this->printStatement();
-        }
-
-        return $this->expressionStatement();
-    }
-
-    protected function printStatement(): PrintStatement
-    {
-        $expression = $this->expression();
-        $this->consume(TokenType::SEMICOLON, 'Expected ";" after value.');
-
-        return new PrintStatement($expression);
     }
 
     protected function expressionStatement(): ExpressionStatement
@@ -110,7 +193,7 @@ class Parser
 
     protected function assignment(): Expression
     {
-        $expression = $this->equality();
+        $expression = $this->or();
 
         if ($this->match(TokenType::EQUAL)) {
             $equals = $this->previous();
@@ -122,6 +205,32 @@ class Parser
             }
 
             $this->error($equals, 'Invalid assignment target.');
+        }
+
+        return $expression;
+    }
+
+    protected function or(): Expression
+    {
+        $expression = $this->and();
+
+        while ($this->match(TokenType::OR)) {
+            $operator = $this->previous();
+            $right = $this->and();
+            $expression = new LogicalExpression($expression, $operator, $right);
+        }
+
+        return $expression;
+    }
+
+    protected function and(): Expression
+    {
+        $expression = $this->equality();
+
+        while ($this->match(TokenType::AND)) {
+            $operator = $this->previous();
+            $right = $this->equality();
+            $expression = new LogicalExpression($expression, $operator, $right);
         }
 
         return $expression;

@@ -12,12 +12,15 @@ use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
+use Rexpl\Lox\Expressions\LogicalExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\IfStatement;
 use Rexpl\Lox\Statements\PrintStatement;
 use Rexpl\Lox\Statements\VariableStatement;
+use Rexpl\Lox\Statements\WhileStatement;
 
 class Interpreter implements Visitor
 {
@@ -134,6 +137,23 @@ class Interpreter implements Visitor
         return $expression->value;
     }
 
+    public function visitLogicalExpression(LogicalExpression $expression)
+    {
+        $left = $this->evaluate($expression->left);
+
+        if ($expression->operator->type === TokenType::OR) {
+            if ($this->isTruthy($left)) {
+                return $left;
+            }
+        } else {
+            if (!$this->isTruthy($left)) {
+                return $left;
+            }
+        }
+
+        return $this->evaluate($expression->right);
+    }
+
     public function visitUnaryExpression(UnaryExpression $expression)
     {
         $value = $this->evaluate($expression->right);
@@ -163,6 +183,17 @@ class Interpreter implements Visitor
         $this->evaluate($statement->expression);
     }
 
+    public function visitIfStatement(IfStatement $statement)
+    {
+        $result = $this->isTruthy($this->evaluate($statement->condition));
+
+        if ($result) {
+            $this->execute($statement->thenBranch);
+        } elseif ($statement->elseBranch !== null) {
+            $this->execute($statement->elseBranch);
+        }
+    }
+
     public function visitPrintStatement(PrintStatement $statement)
     {
         \dump($this->evaluate($statement->expression));
@@ -172,6 +203,13 @@ class Interpreter implements Visitor
     {
         $value = $this->evaluate($statement->expression);
         $this->environment->define($statement->name, $value);
+    }
+
+    public function visitWhileStatement(WhileStatement $statement)
+    {
+        while ($this->isTruthy($this->evaluate($statement->condition))) {
+            $this->execute($statement->body);
+        }
     }
 
     protected function checkNumberOperand(Token $operator, mixed $operand): void

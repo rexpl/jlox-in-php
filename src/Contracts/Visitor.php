@@ -8,12 +8,15 @@ use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
+use Rexpl\Lox\Expressions\LogicalExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\IfStatement;
 use Rexpl\Lox\Statements\PrintStatement;
 use Rexpl\Lox\Statements\VariableStatement;
+use Rexpl\Lox\Statements\WhileStatement;
 
 interface Visitor
 {
@@ -25,6 +28,8 @@ interface Visitor
 
     public function visitLiteralExpression(LiteralExpression $expression);
 
+    public function visitLogicalExpression(LogicalExpression $expression);
+
     public function visitUnaryExpression(UnaryExpression $expression);
 
     public function visitVariableExpression(VariableExpression $expression);
@@ -33,7 +38,11 @@ interface Visitor
 
     public function visitExpressionStatement(ExpressionStatement $statement);
 
+    public function visitIfStatement(IfStatement $statement);
+
     public function visitPrintStatement(PrintStatement $statement);
 
     public function visitVariableStatement(VariableStatement $statement);
+
+    public function visitWhileStatement(WhileStatement $statement);
 }
