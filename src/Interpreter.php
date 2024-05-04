@@ -29,12 +29,19 @@ use Rexpl\Lox\Statements\WhileStatement;
 
 class Interpreter implements Visitor
 {
+    /**
+     * @var \SplObjectStorage<\Rexpl\Lox\Contracts\Expression,int>
+     */
+    protected \SplObjectStorage $locals;
+
     protected Environment $global;
 
     protected Environment $environment;
 
     public function __construct()
     {
+        $this->locals = new \SplObjectStorage();
+
         $this->global = new Environment();
         $this->environment = $this->global;
 
@@ -98,6 +105,11 @@ class Interpreter implements Visitor
         }
     }
 
+    public function resolve(Expression $expression, int $depth): void
+    {
+        $this->locals->attach($expression, $depth);
+    }
+
     protected function execute(Statement $statement): void
     {
         $statement->acceptVisitor($this);
@@ -111,7 +123,13 @@ class Interpreter implements Visitor
     public function visitAssignExpression(AssignExpression $expression)
     {
         $value = $this->evaluate($expression->expression);
-        $this->environment->assign($expression->name, $value);
+
+        if ($this->locals->offsetExists($expression)) {
+            $this->environment->assignAt($this->locals->offsetGet($expression), $expression->name, $value);
+        } else {
+            $this->global->assign($expression->name, $value);
+        }
+
         return $value;
     }
 
@@ -229,7 +247,16 @@ class Interpreter implements Visitor
 
     public function visitVariableExpression(VariableExpression $expression)
     {
-        return $this->environment->get($expression->name);
+        return $this->lookUpVariable($expression->name, $expression);
+    }
+
+    protected function lookUpVariable(Token $name, Expression $expression): mixed
+    {
+        if ($this->locals->offsetExists($expression)) {
+            return $this->environment->getAt($this->locals->offsetGet($expression), $name->literal);
+        }
+
+        return $this->global->get($name);
     }
 
     public function visitBlockStatement(BlockStatement $statement)

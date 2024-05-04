@@ -79,6 +79,13 @@ class Lox
             $statements[0] = new PrintStatement($statements[0]->expression);
         }
 
+        $resolver = new Resolver(self::$interpreter);
+        $resolver->resolve($statements);
+
+        if (self::$hadError) {
+            return;
+        }
+
         self::$interpreter->interpret($statements);
     }
 
@@ -104,7 +111,7 @@ class Lox
         self::report(
             $error->token->line,
             $error->userMessage,
-            sprintf(' at "%s"', $error->token->lexeme),
+            sprintf(' at "%s"', \str_replace("\n", "\033[33m\n\\n\033[31m", $error->token->lexeme)),
             'RuntimeError'
         );
         self::$hasRuntimeError = true;

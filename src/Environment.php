@@ -23,6 +23,17 @@ class Environment
         $this->values[$name] = $value;
     }
 
+    public function ancestor(int $distance): Environment
+    {
+        $environment = $this;
+
+        for ($i = 0; $i < $distance; $i++) {
+            $environment = $environment->enclosing;
+        }
+
+        return $environment;
+    }
+
     public function get(Token $name): mixed
     {
         if (array_key_exists($name->literal, $this->values)) {
@@ -34,6 +45,11 @@ class Environment
         }
 
         throw new RuntimeError($name, \sprintf('Access to undefined variable "%s".', $name->literal));
+    }
+
+    public function getAt(int $distance, string $name): mixed
+    {
+        return $this->ancestor($distance)->values[$name];
     }
 
     public function assign(Token $name, mixed $value): void
@@ -49,5 +65,10 @@ class Environment
         }
 
         throw new RuntimeError($name, \sprintf('Cannot assign value to undefined variable "%s".', $name->literal));
+    }
+
+    public function assignAt(int $distance, Token $name, mixed $value): void
+    {
+        $this->ancestor($distance)->values[$name->literal] = $value;
     }
 }
