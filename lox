@@ -5,20 +5,6 @@ declare(strict_types=1);
 
 require 'vendor/autoload.php';
 
-$cloner = new \Symfony\Component\VarDumper\Cloner\VarCloner();
-$fallbackDumper = \in_array(\PHP_SAPI, ['cli', 'phpdbg'])
-    ? new \Symfony\Component\VarDumper\Dumper\CliDumper()
-    : new \Symfony\Component\VarDumper\Dumper\HtmlDumper();
-
-$dumper = new \Symfony\Component\VarDumper\Dumper\ServerDumper('tcp://127.0.0.1:9912', $fallbackDumper, [
-    'cli' => new \Symfony\Component\VarDumper\Dumper\ContextProvider\CliContextProvider(),
-    'source' => new \Symfony\Component\VarDumper\Dumper\ContextProvider\SourceContextProvider(),
-]);
-
-\Symfony\Component\VarDumper\VarDumper::setHandler(function (mixed $var) use ($cloner, $dumper): ?string {
-    return $dumper->dump($cloner->cloneVar($var));
-});
-
 try {
     \Rexpl\Lox\Lox::main($argv);
 } catch (Throwable $throwable) {

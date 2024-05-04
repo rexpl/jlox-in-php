@@ -30,11 +30,19 @@ class LoxFunction implements LoxCallable
         }
 
         try {
-            $interpreter->executeBlock($this->declaration->body->statements, $environment);
+            $interpreter->executeBlock($this->declaration->body->statements, new Environment($environment));
         } catch (LoxReturn $flowReturn) {
             return $flowReturn->value;
         }
 
         return null;
+    }
+
+    public function bind(LoxInstance $instance): LoxFunction
+    {
+        $environment = new Environment($this->closure);
+        $environment->define('this', $instance);
+
+        return new LoxFunction($this->declaration, $environment);
     }
 }

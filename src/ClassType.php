@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Rexpl\Lox;
 
-enum FunctionType
+enum ClassType
 {
     case None;
-    case Function;
-    case Method;
+    case T_Class;
 }

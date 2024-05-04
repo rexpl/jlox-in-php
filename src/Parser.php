@@ -9,12 +9,16 @@ use Rexpl\Lox\Contracts\Statement;
 use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
 use Rexpl\Lox\Expressions\CallExpression;
+use Rexpl\Lox\Expressions\GetExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
+use Rexpl\Lox\Expressions\SetExpression;
+use Rexpl\Lox\Expressions\ThisExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
+use Rexpl\Lox\Statements\ClassStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
 use Rexpl\Lox\Statements\FunctionStatement;
 use Rexpl\Lox\Statements\IfStatement;
@@ -46,6 +50,10 @@ class Parser
     protected function declaration(): ?Statement
     {
         try {
+            if ($this->match(TokenType::T_CLASS)) {
+                return $this->classDeclaration();
+            }
+
             if ($this->match(TokenType::FUN)) {
                 return $this->function('function');
             }
@@ -59,6 +67,22 @@ class Parser
             $this->synchronize();
             return null;
         }
+    }
+
+    protected function classDeclaration(): Statement
+    {
+        $name = $this->consume(TokenType::IDENTIFIER, 'Expected class name.');
+        $this->consume(TokenType::LEFT_BRACE, 'Expected "{" before class body.');
+
+        $methods = [];
+
+        while (!$this->check(TokenType::RIGHT_BRACE) && !$this->isAtEnd()) {
+            $methods[] = $this->function('method');
+        }
+
+        $this->consume(TokenType::RIGHT_BRACE, 'Expected "}" after class body.');
+
+        return new ClassStatement($name, $methods);
     }
 
     protected function function(string $type): Statement
@@ -249,6 +273,8 @@ class Parser
             if ($expression instanceof VariableExpression) {
                 $name = $expression->name;
                 return new AssignExpression($name, $value);
+            } elseif ($expression instanceof GetExpression) {
+                return new SetExpression($expression->object, $expression->name, $value);
             }
 
             $this->error($equals, 'Invalid assignment target.');
@@ -353,11 +379,14 @@ class Parser
         $expression = $this->primary();
 
         while (true) {
-            if (!$this->match(TokenType::LEFT_PAREN)) {
+            if ($this->match(TokenType::LEFT_PAREN)) {
+                $expression = $this->finishCall($expression);
+            } elseif ($this->match(TokenType::DOT)) {
+                $name = $this->consume(TokenType::IDENTIFIER, 'Expected property name after ".".');
+                $expression = new GetExpression($expression, $name);
+            } else {
                 break;
             }
-
-            $expression = $this->finishCall($expression);
         }
 
         return $expression;
@@ -387,6 +416,7 @@ class Parser
             $this->match(TokenType::NUMBER) => new LiteralExpression((float) $this->previous()->literal),
             $this->match(TokenType::STRING) => new LiteralExpression($this->previous()->literal),
             $this->match(TokenType::LEFT_PAREN) => $this->grouping(),
+            $this->match(TokenType::THIS) => new ThisExpression($this->previous()),
             $this->match(TokenType::IDENTIFIER) => new VariableExpression($this->previous()),
             default => throw $this->error($this->peek(), 'Expected expression.'),
         };

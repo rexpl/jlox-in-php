@@ -208,7 +208,7 @@ class Scanner
         }
 
         if (isset(static::KEYWORDS[$characters])) {
-            $this->addToken(static::KEYWORDS[$characters]);
+            $this->addToken(static::KEYWORDS[$characters], $characters);
         } else {
             $this->addToken(TokenType::IDENTIFIER, $characters);
         }

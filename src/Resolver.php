@@ -10,12 +10,16 @@ use Rexpl\Lox\Contracts\Visitor;
 use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
 use Rexpl\Lox\Expressions\CallExpression;
+use Rexpl\Lox\Expressions\GetExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
+use Rexpl\Lox\Expressions\SetExpression;
+use Rexpl\Lox\Expressions\ThisExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
+use Rexpl\Lox\Statements\ClassStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
 use Rexpl\Lox\Statements\FunctionStatement;
 use Rexpl\Lox\Statements\IfStatement;
@@ -32,9 +36,19 @@ class Resolver implements Visitor
     protected \SplStack $scopes;
 
     /**
+     * @var \stdClass
+     */
+    protected \stdClass $currentScope;
+
+    /**
      * @var \Rexpl\Lox\FunctionType
      */
     protected FunctionType $currentFunction = FunctionType::None;
+
+    /**
+     * @var \Rexpl\Lox\ClassType
+     */
+    protected ClassType $currentClass = ClassType::None;
 
     /**
      * @param \Rexpl\Lox\Interpreter $interpreter
@@ -66,7 +80,10 @@ class Resolver implements Visitor
 
     protected function beginScope(): void
     {
-        $this->scopes->push(new \stdClass());
+        $scope = new \stdClass();
+
+        $this->currentScope = $scope;
+        $this->scopes->push($scope);
     }
 
     protected function endScope(): void
@@ -80,13 +97,11 @@ class Resolver implements Visitor
             return;
         }
 
-        $scope = $this->scopes->top();
-
-        if (\property_exists($scope, $name->literal)) {
+        if (\property_exists($this->currentScope, $name->literal)) {
             Lox::error($name->line, 'Already a variable with this name in this scope.');
         }
 
-        $scope->{$name->literal} = false;
+        $this->currentScope->{$name->literal} = false;
     }
 
     protected function define(Token $name): void
@@ -95,16 +110,24 @@ class Resolver implements Visitor
             return;
         }
 
-        $this->scopes->top()->{$name->literal} = true;
+        $this->currentScope->{$name->literal} = true;
     }
 
     protected function resolveLocal(Expression $expression, Token $name): void
     {
-        for ($i = $this->scopes->count() - 1; $i >= 0; $i--) {
-            if (isset($this->scopes->offsetGet($i)->{$name->literal})) {
-                $this->interpreter->resolve($expression, $this->scopes->count() - 1 - $i);
-                return;
+        $i = 0;
+
+        foreach ($this->scopes as $scope) {
+
+            if (property_exists($scope, $name->literal)) {
+                $depth = $i;
             }
+
+            $i++;
+        }
+
+        if (isset($depth)) {
+            $this->interpreter->resolve($expression, $depth);
         }
     }
 
@@ -147,6 +170,11 @@ class Resolver implements Visitor
         }
     }
 
+    public function visitGetExpression(GetExpression $expression)
+    {
+        $this->resolveExpression($expression->object);
+    }
+
     public function visitGroupingExpression(GroupingExpression $expression)
     {
         $this->resolveExpression($expression->expression);
@@ -160,6 +188,21 @@ class Resolver implements Visitor
     {
         $this->resolveExpression($expression->left);
         $this->resolveExpression($expression->right);
+    }
+
+    public function visitSetExpression(SetExpression $expression)
+    {
+        $this->resolveExpression($expression->value);
+        $this->resolveExpression($expression->object);
+    }
+
+    public function visitThisExpression(ThisExpression $expression)
+    {
+        if ($this->currentClass === ClassType::None) {
+            Lox::error($expression->keyword->line, 'Can\'t use "this" outside of a class.');
+        }
+
+        $this->resolveLocal($expression, $expression->keyword);
     }
 
     public function visitUnaryExpression(UnaryExpression $expression)
@@ -177,6 +220,26 @@ class Resolver implements Visitor
         $this->beginScope();
         $this->resolve($statement->statements);
         $this->endScope();
+    }
+
+    public function visitClassStatement(ClassStatement $statement)
+    {
+        $enclosingClass = $this->currentClass;
+        $this->currentClass = ClassType::T_Class;
+
+        $this->declare($statement->name);
+        $this->define($statement->name);
+
+        $this->beginScope();
+        $this->currentScope->{'this'} = true;
+
+        foreach ($statement->methods as $method) {
+            $this->resolveFunction($method, FunctionType::Method);
+        }
+
+        $this->endScope();
+
+        $this->currentClass = $enclosingClass;
     }
 
     public function visitExpressionStatement(ExpressionStatement $statement)

@@ -13,12 +13,16 @@ use Rexpl\Lox\Exceptions\RuntimeError;
 use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
 use Rexpl\Lox\Expressions\CallExpression;
+use Rexpl\Lox\Expressions\GetExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
+use Rexpl\Lox\Expressions\SetExpression;
+use Rexpl\Lox\Expressions\ThisExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
+use Rexpl\Lox\Statements\ClassStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
 use Rexpl\Lox\Statements\FunctionStatement;
 use Rexpl\Lox\Statements\IfStatement;
@@ -204,6 +208,17 @@ class Interpreter implements Visitor
         return $callee->call($this, $arguments);
     }
 
+    public function visitGetExpression(GetExpression $expression)
+    {
+        $object = $this->evaluate($expression->object);
+
+        if ($object instanceof LoxInstance) {
+            return $object->get($expression->name);
+        }
+
+        throw new RuntimeError($expression->name, 'Only instances have properties.');
+    }
+
     public function visitGroupingExpression(GroupingExpression $expression)
     {
         return $this->evaluate($expression->expression);
@@ -229,6 +244,25 @@ class Interpreter implements Visitor
         }
 
         return $this->evaluate($expression->right);
+    }
+
+    public function visitSetExpression(SetExpression $expression)
+    {
+        $object = $this->evaluate($expression->object);
+
+        if (!$object instanceof LoxInstance) {
+            throw new RuntimeError($expression->name, 'Only instances have properties.');
+        }
+
+        $value = $this->evaluate($expression->value);
+        $object->set($expression->name, $value);
+
+        return $value;
+    }
+
+    public function visitThisExpression(ThisExpression $expression)
+    {
+        return $this->lookUpVariable($expression->keyword, $expression);
     }
 
     public function visitUnaryExpression(UnaryExpression $expression)
@@ -262,6 +296,19 @@ class Interpreter implements Visitor
     public function visitBlockStatement(BlockStatement $statement)
     {
         $this->executeBlock($statement->statements, new Environment($this->environment));
+    }
+
+    public function visitClassStatement(ClassStatement $statement)
+    {
+        $this->environment->define($statement->name->literal, null);
+
+        $methods = [];
+
+        foreach ($statement->methods as $method) {
+            $methods[$method->name->literal] = new LoxFunction($method, $this->environment);
+        }
+
+        $this->environment->assign($statement->name, new LoxClass($statement->name->literal, $methods));
     }
 
     public function visitExpressionStatement(ExpressionStatement $statement)
