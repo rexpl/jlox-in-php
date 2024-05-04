@@ -11,6 +11,11 @@ use Rexpl\Lox\Statements\FunctionStatement;
 class LoxFunction implements LoxCallable
 {
     /**
+     * @var bool
+     */
+    public bool $isInitializer = false;
+
+    /**
      * @param \Rexpl\Lox\Statements\FunctionStatement $declaration
      * @param \Rexpl\Lox\Environment $closure
      */
@@ -32,7 +37,9 @@ class LoxFunction implements LoxCallable
         try {
             $interpreter->executeBlock($this->declaration->body->statements, new Environment($environment));
         } catch (LoxReturn $flowReturn) {
-            return $flowReturn->value;
+            return $this->isInitializer
+                ? $this->closure->getAt(0, 'this')
+                : $flowReturn->value;
         }
 
         return null;

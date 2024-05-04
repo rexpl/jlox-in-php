@@ -13,9 +13,9 @@ class ReturnStatement implements Statement
 {
     /**
      * @param \Rexpl\Lox\Token $keyword
-     * @param \Rexpl\Lox\Contracts\Expression $value
+     * @param \Rexpl\Lox\Contracts\Expression|null $value
      */
-    public function __construct(public Token $keyword, public Expression $value) {}
+    public function __construct(public Token $keyword, public ?Expression $value) {}
 
     public function acceptVisitor(Visitor $visitor)
     {

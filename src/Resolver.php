@@ -234,7 +234,10 @@ class Resolver implements Visitor
         $this->currentScope->{'this'} = true;
 
         foreach ($statement->methods as $method) {
-            $this->resolveFunction($method, FunctionType::Method);
+            $this->resolveFunction(
+                $method,
+                $method->name->literal === 'init' ? FunctionType::Initializer : FunctionType::Method
+            );
         }
 
         $this->endScope();
@@ -274,6 +277,14 @@ class Resolver implements Visitor
     {
         if ($this->currentFunction === FunctionType::None) {
             Lox::error($statement->keyword->line, 'Can\'t return from top-level code.');
+        }
+
+        if ($statement->value === null) {
+            return;
+        }
+
+        if ($this->currentFunction === FunctionType::None) {
+            Lox::error($statement->keyword->line, 'Can\'t return a value from an initializer.');
         }
 
         $this->resolveExpression($statement->value);

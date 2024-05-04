@@ -16,12 +16,20 @@ class LoxClass implements LoxCallable
 
     public function arity(): int
     {
-        return 0;
+        return $this->getMethod('init')?->arity();
     }
 
     public function call(Interpreter $interpreter, array $arguments): mixed
     {
-        return new LoxInstance($this);
+        $instance = new LoxInstance($this);
+
+        $initializer = $this->getMethod('init');
+        if ($initializer !== null) {
+            $initializer->isInitializer = true;
+            $initializer->bind($instance)->call($interpreter, $arguments);
+        }
+
+        return $instance;
     }
 
     public function getMethod(string $name): ?LoxFunction

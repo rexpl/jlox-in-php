@@ -354,7 +354,7 @@ class Interpreter implements Visitor
 
     public function visitReturnStatement(ReturnStatement $statement)
     {
-        $value = $this->evaluate($statement->value);
+        $value = $statement->value === null ? $this->evaluate($statement->value) : null;
 
         throw new LoxReturn($value);
     }

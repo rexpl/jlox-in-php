@@ -216,7 +216,7 @@ class Parser
         $keyword = $this->previous();
 
         if ($this->check(TokenType::SEMICOLON)) {
-            $value = new LiteralExpression(null);
+            $value = null;
         } else {
             $value = $this->expression();
         }
