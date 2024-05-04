@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Rexpl\Lox;
 
 use Rexpl\Lox\Contracts\Expression;
+use Rexpl\Lox\Contracts\LoxCallable;
 use Rexpl\Lox\Contracts\Statement;
 use Rexpl\Lox\Contracts\Visitor;
+use Rexpl\Lox\Exceptions\FlowExceptions\LoxReturn;
 use Rexpl\Lox\Exceptions\RuntimeError;
 use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
+use Rexpl\Lox\Expressions\CallExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
@@ -17,18 +20,49 @@ use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\FunctionStatement;
 use Rexpl\Lox\Statements\IfStatement;
 use Rexpl\Lox\Statements\PrintStatement;
+use Rexpl\Lox\Statements\ReturnStatement;
 use Rexpl\Lox\Statements\VariableStatement;
 use Rexpl\Lox\Statements\WhileStatement;
 
 class Interpreter implements Visitor
 {
+    protected Environment $global;
+
     protected Environment $environment;
 
     public function __construct()
     {
-        $this->environment = new Environment();
+        $this->global = new Environment();
+        $this->environment = $this->global;
+
+        $this->global->define('clock', new class implements LoxCallable {
+
+            public function arity(): int
+            {
+                return 0;
+            }
+
+            public function call(Interpreter $interpreter, array $arguments): mixed
+            {
+                return microtime(true);
+            }
+        });
+
+        $this->global->define('dump', new class implements LoxCallable {
+
+            public function arity(): int
+            {
+                return 0;
+            }
+
+            public function call(Interpreter $interpreter, array $arguments): mixed
+            {
+                \dd($interpreter);
+            }
+        });
     }
 
     /**
@@ -127,6 +161,31 @@ class Interpreter implements Visitor
         }
     }
 
+    public function visitCallExpression(CallExpression $expression): mixed
+    {
+        $callee = $this->evaluate($expression->callee);
+
+        if (!$callee instanceof LoxCallable) {
+            throw new RuntimeError($expression->parentheses, 'Can only call functions and classes.');
+        }
+
+        $arguments = [];
+        foreach ($expression->arguments as $argumentExpression) {
+            $arguments[] = $this->evaluate($argumentExpression);
+        }
+
+        if (\count($arguments) !== $callee->arity()) {
+            throw new RuntimeError(
+                $expression->parentheses,
+                \sprintf(
+                    '%s() expected %d arguments but got %d.', $expression->parentheses->lexeme, \count($arguments), $callee->arity()
+                )
+            );
+        }
+
+        return $callee->call($this, $arguments);
+    }
+
     public function visitGroupingExpression(GroupingExpression $expression)
     {
         return $this->evaluate($expression->expression);
@@ -183,6 +242,12 @@ class Interpreter implements Visitor
         $this->evaluate($statement->expression);
     }
 
+    public function visitFunctionStatement(FunctionStatement $statement): void
+    {
+        $function = new LoxFunction($statement, $this->environment);
+        $this->environment->define($statement->name->literal, $function);
+    }
+
     public function visitIfStatement(IfStatement $statement)
     {
         $result = $this->isTruthy($this->evaluate($statement->condition));
@@ -196,13 +261,28 @@ class Interpreter implements Visitor
 
     public function visitPrintStatement(PrintStatement $statement)
     {
-        \dump($this->evaluate($statement->expression));
+        $value = $this->evaluate($statement->expression);
+
+        echo match(\gettype($value)) {
+            'boolean' => $value ? "\33[32mtrue\33[39m\n" : "\33[31mfalse\33[39m\n",
+            'NULL' => "\33[33mnil\33[39m\n",
+            'double' => "\33[36m" . $value . "\33[39m\n",
+            'string' => $value . "\n",
+            default => "\33[95m" . \gettype($value) . "\33[39m\n",
+        };
     }
 
     public function visitVariableStatement(VariableStatement $statement)
     {
         $value = $this->evaluate($statement->expression);
-        $this->environment->define($statement->name, $value);
+        $this->environment->define($statement->name->literal, $value);
+    }
+
+    public function visitReturnStatement(ReturnStatement $statement)
+    {
+        $value = $this->evaluate($statement->value);
+
+        throw new LoxReturn($value);
     }
 
     public function visitWhileStatement(WhileStatement $statement)

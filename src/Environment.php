@@ -18,9 +18,9 @@ class Environment
      */
     public function __construct(protected ?Environment $enclosing = null) {}
 
-    public function define(Token $name, mixed $value): void
+    public function define(string $name, mixed $value): void
     {
-        $this->values[$name->literal] = $value;
+        $this->values[$name] = $value;
     }
 
     public function get(Token $name): mixed

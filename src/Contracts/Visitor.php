@@ -6,6 +6,7 @@ namespace Rexpl\Lox\Contracts;
 
 use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
+use Rexpl\Lox\Expressions\CallExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
@@ -13,8 +14,10 @@ use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\FunctionStatement;
 use Rexpl\Lox\Statements\IfStatement;
 use Rexpl\Lox\Statements\PrintStatement;
+use Rexpl\Lox\Statements\ReturnStatement;
 use Rexpl\Lox\Statements\VariableStatement;
 use Rexpl\Lox\Statements\WhileStatement;
 
@@ -23,6 +26,8 @@ interface Visitor
     public function visitAssignExpression(AssignExpression $expression);
 
     public function visitBinaryExpression(BinaryExpression $expression);
+
+    public function visitCallExpression(CallExpression $expression);
 
     public function visitGroupingExpression(GroupingExpression $expression);
 
@@ -38,9 +43,13 @@ interface Visitor
 
     public function visitExpressionStatement(ExpressionStatement $statement);
 
+    public function visitFunctionStatement(FunctionStatement $statement);
+
     public function visitIfStatement(IfStatement $statement);
 
     public function visitPrintStatement(PrintStatement $statement);
+
+    public function visitReturnStatement(ReturnStatement $statement);
 
     public function visitVariableStatement(VariableStatement $statement);
 

@@ -8,6 +8,7 @@ use Rexpl\Lox\Contracts\Expression;
 use Rexpl\Lox\Contracts\Statement;
 use Rexpl\Lox\Expressions\AssignExpression;
 use Rexpl\Lox\Expressions\BinaryExpression;
+use Rexpl\Lox\Expressions\CallExpression;
 use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
@@ -15,8 +16,10 @@ use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
 use Rexpl\Lox\Statements\BlockStatement;
 use Rexpl\Lox\Statements\ExpressionStatement;
+use Rexpl\Lox\Statements\FunctionStatement;
 use Rexpl\Lox\Statements\IfStatement;
 use Rexpl\Lox\Statements\PrintStatement;
+use Rexpl\Lox\Statements\ReturnStatement;
 use Rexpl\Lox\Statements\VariableStatement;
 use Rexpl\Lox\Statements\WhileStatement;
 
@@ -43,6 +46,10 @@ class Parser
     protected function declaration(): ?Statement
     {
         try {
+            if ($this->match(TokenType::FUN)) {
+                return $this->function('function');
+            }
+
             if ($this->match(TokenType::VAR)) {
                 return $this->varDeclaration();
             }
@@ -52,6 +59,27 @@ class Parser
             $this->synchronize();
             return null;
         }
+    }
+
+    protected function function(string $type): Statement
+    {
+        $name = $this->consume(TokenType::IDENTIFIER, 'Expected function name.');
+        $this->consume(TokenType::LEFT_PAREN, 'Expected "(" after function name.');
+
+        $parameters = [];
+
+        if (!$this->check(TokenType::RIGHT_PAREN)) {
+            do {
+                $parameters[] = $this->consume(TokenType::IDENTIFIER, 'Expected parameter name.');
+            } while ($this->match(TokenType::COMMA) && !$this->check(TokenType::RIGHT_PAREN));
+        }
+
+        $this->consume(TokenType::RIGHT_PAREN, 'Expected ")" after parameters.');
+        $this->consume(TokenType::LEFT_BRACE, 'Expected "{" before function body.');
+
+        $body = $this->block();
+
+        return new FunctionStatement($name, $parameters, $body);
     }
 
     protected function varDeclaration(): Statement
@@ -76,6 +104,10 @@ class Parser
 
         if ($this->match(TokenType::PRINT)) {
             return $this->printStatement();
+        }
+
+        if ($this->match(TokenType::RETURN)) {
+            return $this->returnStatement();
         }
 
         if ($this->match(TokenType::WHILE)) {
@@ -118,7 +150,7 @@ class Parser
         if (isset($increment)) {
             $body = new BlockStatement([
                 $body,
-                new ExpressionStatement($increment)
+                new ExpressionStatement($increment),
             ]);
         }
 
@@ -153,6 +185,21 @@ class Parser
         $this->consume(TokenType::SEMICOLON, 'Expected ";" after value.');
 
         return new PrintStatement($expression);
+    }
+
+    protected function returnStatement(): ReturnStatement
+    {
+        $keyword = $this->previous();
+
+        if ($this->check(TokenType::SEMICOLON)) {
+            $value = new LiteralExpression(null);
+        } else {
+            $value = $this->expression();
+        }
+
+        $this->consume(TokenType::SEMICOLON, 'Expected ";" after return value.');
+
+        return new ReturnStatement($keyword, $value);
     }
 
     protected function whileStatement(): WhileStatement
@@ -298,7 +345,37 @@ class Parser
             return new UnaryExpression($operator, $right);
         }
 
-        return $this->primary();
+        return $this->call();
+    }
+
+    protected function call(): Expression
+    {
+        $expression = $this->primary();
+
+        while (true) {
+            if (!$this->match(TokenType::LEFT_PAREN)) {
+                break;
+            }
+
+            $expression = $this->finishCall($expression);
+        }
+
+        return $expression;
+    }
+
+    protected function finishCall(Expression $callee): CallExpression
+    {
+        $arguments = [];
+
+        if (!$this->check(TokenType::RIGHT_PAREN)) {
+            do {
+                $arguments[] = $this->expression();
+            } while ($this->match(TokenType::COMMA) && !$this->check(TokenType::RIGHT_PAREN));
+        }
+
+        $parentheses = $this->consume(TokenType::RIGHT_PAREN, 'Expected ")" after arguments.');
+
+        return new CallExpression($callee, $parentheses, $arguments);
     }
 
     protected function primary(): Expression
