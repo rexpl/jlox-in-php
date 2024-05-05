@@ -203,7 +203,7 @@ class Scanner
     {
         $characters = $first;
 
-        while (\ctype_alpha($this->peek()) || $this->peek() === '_') {
+        while (\ctype_alnum($this->peek()) || $this->peek() === '_') {
             $characters .= $this->advance();
         }
 
