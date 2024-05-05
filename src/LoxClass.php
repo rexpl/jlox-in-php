@@ -10,13 +10,14 @@ class LoxClass implements LoxCallable
 {
     /**
      * @param string $name
+     * @param \Rexpl\Lox\LoxClass|null $superClass
      * @param array<string,\Rexpl\Lox\LoxFunction> $methods
      */
-    public function __construct(public readonly string $name, protected array $methods) {}
+    public function __construct(public readonly string $name, protected ?LoxClass $superClass, protected array $methods) {}
 
     public function arity(): int
     {
-        return $this->getMethod('init')?->arity();
+        return $this->getMethod('init')?->arity() ?? 0;
     }
 
     public function call(Interpreter $interpreter, array $arguments): mixed
@@ -34,6 +35,8 @@ class LoxClass implements LoxCallable
 
     public function getMethod(string $name): ?LoxFunction
     {
-        return $this->methods[$name] ?? null;
+        return $this->methods[$name]
+            ?? $this->superClass?->getMethod($name)
+            ?? null;
     }
 }

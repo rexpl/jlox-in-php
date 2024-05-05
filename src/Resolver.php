@@ -15,6 +15,7 @@ use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
 use Rexpl\Lox\Expressions\SetExpression;
+use Rexpl\Lox\Expressions\SuperExpression;
 use Rexpl\Lox\Expressions\ThisExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
@@ -196,6 +197,18 @@ class Resolver implements Visitor
         $this->resolveExpression($expression->object);
     }
 
+    public function visitSuperExpression(SuperExpression $expression)
+    {
+        if ($this->currentClass !== ClassType::SubClass) {
+            $message = $this->currentClass === ClassType::None
+                ? 'Can\'t use "super" outside of a class.'
+                : 'Can\'t use "super" in a class with no subclass.';
+            Lox::error($expression->keyword->line, $message);
+        }
+
+        $this->resolveLocal($expression, $expression->keyword);
+    }
+
     public function visitThisExpression(ThisExpression $expression)
     {
         if ($this->currentClass === ClassType::None) {
@@ -230,6 +243,20 @@ class Resolver implements Visitor
         $this->declare($statement->name);
         $this->define($statement->name);
 
+        if ($statement->superClass !== null) {
+
+            if ($statement->superClass->name->literal === $statement->name->literal) {
+                Lox::error($statement->name->line, 'A class can\'t inherit itself.');
+            }
+
+            $this->currentClass = ClassType::SubClass;
+
+            $this->resolveExpression($statement->superClass);
+
+            $this->beginScope();
+            $this->currentScope->{'super'} = true;
+        }
+
         $this->beginScope();
         $this->currentScope->{'this'} = true;
 
@@ -241,6 +268,10 @@ class Resolver implements Visitor
         }
 
         $this->endScope();
+
+        if ($statement->superClass !== null) {
+            $this->endScope();
+        }
 
         $this->currentClass = $enclosingClass;
     }

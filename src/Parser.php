@@ -14,6 +14,7 @@ use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
 use Rexpl\Lox\Expressions\SetExpression;
+use Rexpl\Lox\Expressions\SuperExpression;
 use Rexpl\Lox\Expressions\ThisExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
@@ -72,6 +73,14 @@ class Parser
     protected function classDeclaration(): Statement
     {
         $name = $this->consume(TokenType::IDENTIFIER, 'Expected class name.');
+
+        $superClass = null;
+
+        if ($this->match(TokenType::LESS)) {
+            $this->consume(TokenType::IDENTIFIER, 'Expected super class name.');
+            $superClass = new VariableExpression($this->previous());
+        }
+
         $this->consume(TokenType::LEFT_BRACE, 'Expected "{" before class body.');
 
         $methods = [];
@@ -82,7 +91,7 @@ class Parser
 
         $this->consume(TokenType::RIGHT_BRACE, 'Expected "}" after class body.');
 
-        return new ClassStatement($name, $methods);
+        return new ClassStatement($name, $superClass, $methods);
     }
 
     protected function function(string $type): Statement
@@ -416,6 +425,7 @@ class Parser
             $this->match(TokenType::NUMBER) => new LiteralExpression((float) $this->previous()->literal),
             $this->match(TokenType::STRING) => new LiteralExpression($this->previous()->literal),
             $this->match(TokenType::LEFT_PAREN) => $this->grouping(),
+            $this->match(TokenType::SUPER) => $this->super(),
             $this->match(TokenType::THIS) => new ThisExpression($this->previous()),
             $this->match(TokenType::IDENTIFIER) => new VariableExpression($this->previous()),
             default => throw $this->error($this->peek(), 'Expected expression.'),
@@ -427,6 +437,15 @@ class Parser
         $expression = $this->expression();
         $this->consume(TokenType::RIGHT_PAREN, 'Expected ")" after expression.');
         return new GroupingExpression($expression);
+    }
+
+    protected function super(): SuperExpression
+    {
+        $keyword = $this->previous();
+        $this->consume(TokenType::DOT, 'Expected "." after "super".');
+        $method = $this->consume(TokenType::IDENTIFIER, 'Expected superclass method name.');
+
+        return new SuperExpression($keyword, $method);
     }
 
     protected function match(TokenType ... $types): bool

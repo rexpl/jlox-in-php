@@ -18,6 +18,6 @@ class SuperExpression implements Expression
 
     public function acceptVisitor(Visitor $visitor)
     {
-        $visitor->visitSuperExpression($this);
+        return $visitor->visitSuperExpression($this);
     }
 }

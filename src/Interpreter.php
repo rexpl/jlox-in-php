@@ -18,6 +18,7 @@ use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
 use Rexpl\Lox\Expressions\SetExpression;
+use Rexpl\Lox\Expressions\SuperExpression;
 use Rexpl\Lox\Expressions\ThisExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
@@ -260,6 +261,24 @@ class Interpreter implements Visitor
         return $value;
     }
 
+    public function visitSuperExpression(SuperExpression $expression)
+    {
+        $distance = $this->locals->offsetGet($expression);
+
+        /** @var \Rexpl\Lox\LoxClass $superClass */
+        $superClass = $this->environment->getAt($distance, 'super');
+        /** @var \Rexpl\Lox\LoxInstance $object */
+        $object = $this->environment->getAt($distance - 1, 'this');
+
+        $method = $superClass->getMethod($expression->method->literal);
+
+        if ($method === null) {
+            throw new RuntimeError($expression->method, \sprintf('Undefined property "%s".', $expression->method->literal));
+        }
+
+        return $method->bind($object);
+    }
+
     public function visitThisExpression(ThisExpression $expression)
     {
         return $this->lookUpVariable($expression->keyword, $expression);
@@ -300,7 +319,22 @@ class Interpreter implements Visitor
 
     public function visitClassStatement(ClassStatement $statement)
     {
+        $superClass = null;
+
+        if ($statement->superClass !== null) {
+            $superClass = $this->evaluate($statement->superClass);
+
+            if (!$superClass instanceof LoxClass) {
+                throw new RuntimeError($statement->superClass->name, 'Superclass must be a class.');
+            }
+        }
+
         $this->environment->define($statement->name->literal, null);
+
+        if ($superClass !== null) {
+            $this->environment = new Environment($this->environment);
+            $this->environment->define('super', $superClass);
+        }
 
         $methods = [];
 
@@ -308,7 +342,13 @@ class Interpreter implements Visitor
             $methods[$method->name->literal] = new LoxFunction($method, $this->environment);
         }
 
-        $this->environment->assign($statement->name, new LoxClass($statement->name->literal, $methods));
+        $loxClass = new LoxClass($statement->name->literal, $superClass, $methods);
+
+        if ($superClass !== null) {
+            $this->environment = $this->environment->enclosing;
+        }
+
+        $this->environment->assign($statement->name, $loxClass);
     }
 
     public function visitExpressionStatement(ExpressionStatement $statement)

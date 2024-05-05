@@ -12,6 +12,7 @@ use Rexpl\Lox\Expressions\GroupingExpression;
 use Rexpl\Lox\Expressions\LiteralExpression;
 use Rexpl\Lox\Expressions\LogicalExpression;
 use Rexpl\Lox\Expressions\SetExpression;
+use Rexpl\Lox\Expressions\SuperExpression;
 use Rexpl\Lox\Expressions\ThisExpression;
 use Rexpl\Lox\Expressions\UnaryExpression;
 use Rexpl\Lox\Expressions\VariableExpression;
@@ -42,6 +43,8 @@ interface Visitor
     public function visitLogicalExpression(LogicalExpression $expression);
 
     public function visitSetExpression(SetExpression $expression);
+
+    public function visitSuperExpression(SuperExpression $expression);
 
     public function visitThisExpression(ThisExpression $expression);
 

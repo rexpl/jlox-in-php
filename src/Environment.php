@@ -16,7 +16,7 @@ class Environment
     /**
      * @param \Rexpl\Lox\Environment|null $enclosing
      */
-    public function __construct(protected ?Environment $enclosing = null) {}
+    public function __construct(public ?Environment $enclosing = null) {}
 
     public function define(string $name, mixed $value): void
     {

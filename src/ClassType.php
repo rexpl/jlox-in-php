@@ -8,4 +8,5 @@ enum ClassType
 {
     case None;
     case T_Class;
+    case SubClass;
 }
